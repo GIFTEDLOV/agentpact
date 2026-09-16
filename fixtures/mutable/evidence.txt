@@ -1,2 +1,2 @@
-AGENTPACT-MUTABLE-EVIDENCE-V1
-This supporting evidence is the originally committed public bytes.
+AGENTPACT-MUTABLE-EVIDENCE-V2
+This supporting evidence changed after commitment and must fail closed.
