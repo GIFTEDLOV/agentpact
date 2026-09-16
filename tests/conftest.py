@@ -20,9 +20,32 @@ class _Address(str):
     pass
 
 
+class _Return:
+    def __init__(self, calldata):
+        self.calldata = calldata
+
+
+class _Response:
+    def __init__(self, status=200, body=b""):
+        self.status = status
+        self.body = body
+
+
+def _direct_run_nondet(leader_fn, validator_fn, /, **_kwargs):
+    calldata = leader_fn()
+    if not validator_fn(_Return(calldata)):
+        raise ValueError("direct validator rejected leader result")
+    return calldata
+
+
 def _install_genlayer_stub():
     gl = types.ModuleType("genlayer")
-    gl.vm = types.SimpleNamespace(UserError=ValueError, Result=object, Return=object)
+    gl.vm = types.SimpleNamespace(
+        UserError=ValueError,
+        Result=object,
+        Return=_Return,
+        run_nondet=_direct_run_nondet,
+    )
     gl.contract = types.SimpleNamespace(Contract=object)
     gl.Contract = object
     gl.storage = types.SimpleNamespace(TreeMap=_Generic, DynArray=_DynArray)
@@ -32,7 +55,12 @@ def _install_genlayer_stub():
         sender_address="0x" + "0" * 40,
         datetime="2026-01-01T00:00:00+00:00",
     )
-    gl.nondet = types.SimpleNamespace()
+    gl.nondet = types.SimpleNamespace(
+        web=types.SimpleNamespace(get=lambda _url: _Response()),
+        exec_prompt=lambda _prompt, response_format="json": {
+            "criterion_results": ["PASS"]
+        },
+    )
     gl.types = types.ModuleType("genlayer.types")
     gl.types.u8 = int
     gl.types.u64 = int
