@@ -28,7 +28,10 @@ def _install_genlayer_stub():
     gl.storage = types.SimpleNamespace(TreeMap=_Generic, DynArray=_DynArray)
     gl.public = types.SimpleNamespace(write=lambda fn: fn, view=lambda fn: fn)
     gl.message_raw = {}
-    gl.message = types.SimpleNamespace(sender_address="0x" + "0" * 40)
+    gl.message = types.SimpleNamespace(
+        sender_address="0x" + "0" * 40,
+        datetime="2026-01-01T00:00:00+00:00",
+    )
     gl.nondet = types.SimpleNamespace()
     gl.types = types.ModuleType("genlayer.types")
     gl.types.u8 = int
@@ -40,4 +43,3 @@ def _install_genlayer_stub():
 
 
 _install_genlayer_stub()
-

@@ -107,7 +107,7 @@ class AgentPact(ContractBase):
         pass
 
     def _now(self) -> u64:
-        timestamp = gl.message_raw["datetime"].replace("Z", "+00:00")
+        timestamp = gl.message.datetime.replace("Z", "+00:00")
         return u64(int(datetime.fromisoformat(timestamp).timestamp()))
 
     def _require_text(
@@ -415,7 +415,7 @@ class AgentPact(ContractBase):
                 return False
             return leader_evaluation == independent_evaluation
 
-        result = gl.vm.run_nondet_unsafe(evaluate_delivery, validator_fn)
+        result = gl.vm.run_nondet(evaluate_delivery, validator_fn)
         validated_result = validate_evaluation(result, criterion_count)
         final_results = validated_result["criterion_results"]
         derived = derive_verdict(final_results)

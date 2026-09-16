@@ -5,10 +5,10 @@
 The contract source is [`contracts/agent_pact.py`](../contracts/agent_pact.py). Its exact UTF-8 bytes hash to:
 
 ```text
-68781905e76686df967e1025bfada2f955db569b6c2e82bc956b56d85c72a64e
+c95c986fa8de44b9f541f58539cbd59787afd596acf774c7bccc6feef9a27595
 ```
 
-This equals the source embedded in the finalized deployment transaction `0xf4fe13133e8fb7a5f86781baf0717db27b2ce04ac63abef968b07fb69326f77c`.
+This equals the source fetched from the finalized replacement deployment `0xfb84525500c58217ddf393a9bcacf2c6becf83ad824e7ad7276e9dfb2c8ebaf9` at `0xdA8781136eB4e59A5216e8891113222C42928a8C`.
 
 ## Required local checks
 
@@ -23,7 +23,7 @@ git diff --check
 
 ## Exact Studio-dev semantic/schema check
 
-The strongest available deployed-source check is the Studio-dev JSON-RPC method `gen_getContractSchema` against chain `61997`, RPC `https://studio-dev.genlayer.com/api`, and contract `0xD9E8904920b23845ab1581fc4B4716B3B8be2101`. The expected public methods are:
+The strongest available deployed-source check is the Studio-dev JSON-RPC method `gen_getContractSchema` against chain `61997`, RPC `https://studio-dev.genlayer.com/api`, and contract `0xdA8781136eB4e59A5216e8891113222C42928a8C`. The expected public methods are:
 
 ```text
 create_commitment(provider:string, title:string, specification:string, acceptance_criteria:string, deadline:int, minimum_evidence:int) -> string [write]
@@ -39,5 +39,4 @@ get_commitment_count() -> int [view]
 contract_info() -> any [view]
 ```
 
-The live schema check returned all 11 methods with the exact parameter types, read-only flags, and return shapes above. The public explorer responded HTTP 200 for the canonical contract and deployment transaction pages.
-
+The final `gen_getContractSchemaForCode` preflight returned HTTP 200 and all 11 expected methods before deployment. The final live schema check returned the same 11 methods with the exact parameter types, read-only flags, and return shapes above. The deployed source fetched with `gen_getContractCode` hashes exactly to the local SHA above. The public explorer responded HTTP 200 for the canonical contract and deployment transaction pages.

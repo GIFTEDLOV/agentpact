@@ -7,9 +7,9 @@ Use the explicit Studio-dev network only:
 ```text
 chain: 61997
 rpc: https://studio-dev.genlayer.com/api
-contract: 0xD9E8904920b23845ab1581fc4B4716B3B8be2101
-deployment tx: 0xf4fe13133e8fb7a5f86781baf0717db27b2ce04ac63abef968b07fb69326f77c
-source sha256: 68781905e76686df967e1025bfada2f955db569b6c2e82bc956b56d85c72a64e
+contract: 0xdA8781136eB4e59A5216e8891113222C42928a8C
+deployment tx: 0xfb84525500c58217ddf393a9bcacf2c6becf83ad824e7ad7276e9dfb2c8ebaf9
+source sha256: c95c986fa8de44b9f541f58539cbd59787afd596acf774c7bccc6feef9a27595
 repository: https://github.com/GIFTEDLOV/agentpact
 ```
 
@@ -24,9 +24,8 @@ python -m py_compile contracts/agent_pact.py
 git diff --check
 ```
 
-Then query `gen_getContractSchema` at the canonical RPC and verify the deployed schema has the exact methods in `docs/VALIDATION.md`. The public explorer URL is https://explorer-studio-dev.genlayer.com/address/0xD9E8904920b23845ab1581fc4B4716B3B8be2101.
+Then query `gen_getContractSchema` at the canonical RPC and verify the deployed schema has the exact methods in `docs/VALIDATION.md`. The public explorer URL is https://explorer-studio-dev.genlayer.com/address/0xdA8781136eB4e59A5216e8891113222C42928a8C.
 
 ## Lifecycle rules
 
 Use only disposable Studio-dev accounts. Use separate commitments for accepted, rejected, inconclusive, and expired branches. For submitted branches, record create, submit, dispute, and adjudicate transaction hashes plus finalized receipts and read-only `get_commitment`/`get_verdict` state. For expiry, create with no delivery, wait past the deadline, expire, and record the final `EXPIRED` state.
-
