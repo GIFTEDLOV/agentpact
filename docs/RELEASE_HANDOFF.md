@@ -1,20 +1,21 @@
 # AgentPact release handoff
 
-## Canonical hardened release coordinates
+## Current corrected release coordinates
 
 - Studio-dev chain: `61997`
 - RPC: `https://studio-dev.genlayer.com/api`
-- Contract: [`0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF`](https://explorer-studio-dev.genlayer.com/address/0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF)
-- Deployment transaction: [`0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a`](https://explorer-studio-dev.genlayer.com/tx/0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a)
-- Source SHA-256: `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9`
+- Contract: `0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46`
+- Deployment transaction: `0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f`
+- Deployment status: `FINALIZED`; execution `FINISHED_WITH_RETURN`; consensus `MAJORITY_AGREE`
+- Source SHA-256: `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8`
 - Public repository: https://github.com/GIFTEDLOV/agentpact
 - `MAX_EVIDENCE_BYTES`: `12,000`
 
-The former deployment `0xdA8781136eB4e59A5216e8891113222C42928a8C` / transaction `0xfb84525500c58217ddf393a9bcacf2c6becf83ad824e7ad7276e9dfb2c8ebaf9` is HISTORICAL only.
+The former deployment `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF` / transaction `0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a` with source SHA `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9` is HISTORICAL only. The earlier deployment `0xdA8781136eB4e59A5216e8891113222C42928a8C` / transaction `0xfb84525500c58217ddf393a9bcacf2c6becf83ad824e7ad7276e9dfb2c8ebaf9` is also historical.
 
-## Disposable live proof table
+## Historical disposable live proof table
 
-Every listed transaction was independently checked through Studio-dev RPC as `FINALIZED / FINISHED_WITH_RETURN / MAJORITY_AGREE`. The readback values below are from `get_commitment` after the terminal transaction. Each evidence commitment is shown as `SHA-256/bytes`.
+The six-branch table below belongs to the historical hardened deployment listed above. Every listed transaction was independently checked through Studio-dev RPC as `FINALIZED / FINISHED_WITH_RETURN / MAJORITY_AGREE`. The readback values below are from `get_commitment` after the terminal transaction. Each evidence commitment is shown as `SHA-256/bytes`.
 
 | Branch | Commitment ID | Transaction hashes (create / submit / dispute / adjudicate or expire) | Finalized result | Final status and readback |
 |---|---|---|---|---|
@@ -42,14 +43,24 @@ The disposable requester/provider/reader accounts were `0x61f10cc252ed98ce7596c7
 
 Supporting evidence is cryptographically committed with SHA-256 and exact byte count. URLs are transport locations only. Non-200, missing-body, invalid-UTF-8, wrong-SHA, wrong-byte-count, and post-submission mutation cases all fail closed to `INCONCLUSIVE`; valid exact bytes still permit normal semantic `ACCEPTED`/`REJECTED` evaluation. Terminal commitments cannot be adjudicated again, expired commitments cannot be adjudicated, and unauthorized adjudication is rejected.
 
-## Validation gate
+## Corrected release validation gate
 
-- Direct tests: `20 passed`.
-- GenVM lint: `GENVM_VERSION=v0.2.16`, `Lint passed (3 checks)`.
-- Python compilation: passed.
-- `git diff --check`: passed.
-- Schema preflight: HTTP 200, exact 11 methods and exact 13-parameter `submit_delivery`.
-- Live schema: exact preflight match; deployed code present.
-- On-chain source: `gen_getContractCode` SHA exactly `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9`.
+- GenVM linter: `0.11.1-rc.2`; GenVM artifact: `v0.6.0-rc5`; py-genlayer runner: `5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng`.
+- Direct and semantic regression tests: `21 passed`.
+- AST lint: `Lint passed (3 checks)`; semantic validation, combined check, and schema extraction passed with contract `AgentPact`, constructor params `0`, and `11` public methods.
+- Typecheck: `0 error(s), 0 warning(s)`.
+- Python compilation and `git diff --check`: passed.
+- Schema preflight: HTTP 200; live schema matched exactly; `gen_getContractCode` returned `24,344` nonempty bytes.
+- Deployment receipt: `FINALIZED`, `FINISHED_WITH_RETURN`, `MAJORITY_AGREE`; leader execution `SUCCESS`.
+- On-chain source SHA: `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8`, exactly matching the repository source.
+- `contract_info()`: `AgentPact`, version `0.1.0`, purpose `evidence-backed commitment adjudication`, with the seven documented statuses.
+
+## Corrected deployment lifecycle proof
+
+The corrected deployment lifecycle used create `0x9ffeeb241c1b768d6e95c247c8da21e437b41cf22e446311d503acf9f1623378`, submit `0x8e74c76df2e1e9c99020977a75a14be10e5b54edc24033388e9599922d8cc52b`, dispute `0xbf9f6a789f70d00eef253f44d31a0dab41a1f792c16dfab27f26a377ac00e106`, and adjudicate `0xc606bec2752a6a0f546733321878dd542a0163456217d1a448e87d9e3183e50d`. All four were verified as `FINALIZED / FINISHED_WITH_RETURN / MAJORITY_AGREE`; readback was `ACCEPTED`, score `100`, and `evidence_valid=true`.
+
+## Semantic-validator E106 remediation
+
+`AgentPact` always declared `__init__(self)`. A module-level `ContractBase` compatibility alias could be discovered before `AgentPact`, causing current semantic discovery to select `genlayer.contract.Contract`; schema extraction then inspected the SDK base class and reported `__init__ is absent`. The alias was removed and `AgentPact` now directly inherits from `gl.contract.Contract`. Current SDK semantic validation and schema extraction select `AgentPact` and pass, and the exact corrected source was redeployed with a matching on-chain source SHA.
 
 The public source, fixtures, validation record, runbook, and this handoff are published at https://github.com/GIFTEDLOV/agentpact.

@@ -93,13 +93,7 @@ def derive_verdict(results: typing.List[str]) -> typing.Dict[str, typing.Any]:
     }
 
 
-try:
-    ContractBase = gl.contract.Contract
-except AttributeError:
-    ContractBase = gl.Contract
-
-
-class AgentPact(ContractBase):
+class AgentPact(gl.contract.Contract):
     commitments: gl.storage.TreeMap[str, str]
     commitment_ids: gl.storage.DynArray[str]
     next_id: u256

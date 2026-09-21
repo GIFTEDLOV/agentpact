@@ -2,16 +2,22 @@
 
 AgentPact is an evidence-backed commitment adjudication contract for GenLayer. A requester creates a commitment, a provider submits a public HTTPS delivery, and either party can adjudicate after a dispute or deadline. Independent nondeterministic evaluation is validated by consensus and fails closed to `INCONCLUSIVE` when committed bytes cannot be recovered or verified.
 
-## Canonical deployment
+## Current corrected deployment
 
-- Studio-dev chain: `61997`
+- Network: Studio-dev
+- Chain ID: `61997`
 - RPC: `https://studio-dev.genlayer.com/api`
-- Contract: [`0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF`](https://explorer-studio-dev.genlayer.com/address/0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF)
-- Deployment transaction: [`0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a`](https://explorer-studio-dev.genlayer.com/tx/0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a)
-- Source SHA-256: `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9`
+- Contract: `0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46`
+- Deployment transaction: `0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f`
+- Deployment status: `FINALIZED`; execution `FINISHED_WITH_RETURN`; consensus `MAJORITY_AGREE`
+- Source SHA-256: `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8`
 - Public repository: https://github.com/GIFTEDLOV/agentpact
 
-The deployed source is preserved byte-for-byte in [`contracts/agent_pact.py`](contracts/agent_pact.py). The source SHA is the SHA-256 of the exact UTF-8 bytes submitted in the deployment transaction.
+The deployed source is preserved byte-for-byte in [`contracts/agent_pact.py`](contracts/agent_pact.py). The source SHA is the SHA-256 of the exact UTF-8 bytes submitted in the deployment transaction. The previous deployment `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF` / `0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a` is HISTORICAL because its source predates the semantic-validator correction.
+
+## Semantic-validator E106 remediation
+
+`AgentPact` always declared its own `__init__(self)`. The former module-level `ContractBase` compatibility alias could be discovered as the contract class before `AgentPact`, so schema extraction inspected the SDK base class and reported `__init__ is absent`. The alias was removed and `AgentPact` now directly inherits from `gl.contract.Contract`. Current SDK semantic validation and schema extraction pass, and the exact corrected source was redeployed with a matching on-chain source hash.
 
 ## Evidence trust model
 

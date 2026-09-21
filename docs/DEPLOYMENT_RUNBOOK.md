@@ -1,19 +1,19 @@
 # AgentPact deployment runbook
 
-## Canonical hardened deployment
+## Current corrected deployment
 
 Use the explicit Studio-dev network only:
 
 ```text
 chain: 61997
 rpc: https://studio-dev.genlayer.com/api
-contract: 0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF
-deployment tx: 0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a
-source sha256: f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9
+contract: 0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46
+deployment tx: 0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f
+source sha256: bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8
 repository: https://github.com/GIFTEDLOV/agentpact
 ```
 
-This replacement was required because the source changed. It was broadcast exactly once, then verified as `FINALIZED`, `FINISHED_WITH_RETURN`, and `MAJORITY_AGREE`; the address has contract code, the live schema matches the preflight schema, and `gen_getContractCode` matches the source SHA above. Never rebroadcast this deployment.
+The former deployment `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF` with transaction `0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a` and source SHA `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9` is HISTORICAL because its source predates the semantic-validator correction. The corrected deployment was broadcast exactly once, then verified as `FINALIZED`, `FINISHED_WITH_RETURN`, and `MAJORITY_AGREE`; its live schema matches preflight and `gen_getContractCode` matches the source SHA above. Never rebroadcast this deployment.
 
 The prior deployment `0xdA8781136eB4e59A5216e8891113222C42928a8C` with transaction `0xfb84525500c58217ddf393a9bcacf2c6becf83ad824e7ad7276e9dfb2c8ebaf9` is historical only and is not a current coordinate.
 
@@ -24,7 +24,10 @@ Run from the repository root and record the exact source hash:
 ```bash
 sha256sum contracts/agent_pact.py
 .venv/bin/pytest -q
-GENVM_VERSION=v0.2.16 .venv/bin/genvm-lint lint contracts/agent_pact.py
+genvm-lint lint contracts/agent_pact.py
+genvm-lint validate contracts/agent_pact.py
+genvm-lint check contracts/agent_pact.py
+genvm-lint schema contracts/agent_pact.py
 python -m py_compile contracts/agent_pact.py
 git diff --check
 ```

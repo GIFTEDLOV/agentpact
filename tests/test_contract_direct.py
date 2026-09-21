@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 CONTRACT = Path(__file__).parents[1] / "contracts" / "agent_pact.py"
-EXPECTED_SOURCE_SHA256 = "f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9"
+EXPECTED_SOURCE_SHA256 = "bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8"
 
 
 spec = importlib.util.spec_from_file_location("agent_pact", CONTRACT)
