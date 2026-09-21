@@ -1,9 +1,12 @@
 # { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
 
+# pyright: reportInvalidTypeForm=false, reportUnboundVariable=false, reportAttributeAccessIssue=false
+
 from datetime import datetime
 import hashlib
 import json
 import typing
+from urllib.parse import urlsplit
 
 import genlayer as gl
 try:
@@ -12,14 +15,14 @@ except ImportError:
     from genlayer import *
 
 
-MAX_TITLE_LENGTH = 120
-MAX_SPECIFICATION_LENGTH = 8_000
-MAX_CRITERIA_LENGTH = 6_000
-MAX_REASON_LENGTH = 2_000
-MAX_URL_LENGTH = 512
+MAX_TITLE_BYTES = 120
+MAX_SPECIFICATION_BYTES = 8_000
+MAX_CRITERIA_BYTES = 6_000
+MAX_REASON_BYTES = 2_000
+MAX_URL_BYTES = 512
 MAX_EVIDENCE_URLS = 3
 MAX_CRITERIA = 8
-MAX_ARTIFACT_BYTES = 1_048_576
+MAX_ARTIFACT_BYTES = 12_000
 MAX_EVIDENCE_BYTES = 12_000
 MAX_DEADLINE_SECONDS = 31_536_000
 
@@ -36,35 +39,55 @@ RESULT_FAIL = "FAIL"
 RESULT_UNKNOWN = "UNKNOWN"
 
 
-def validate_candidate(candidate: typing.Any, criterion_count: int) -> typing.List[str]:
-    if not isinstance(candidate, dict):
-        raise gl.vm.UserError("validator output is not an object")
-    raw_results = candidate.get("criterion_results")
+def _validate_criterion_results(
+    raw_results: typing.Any, criterion_count: int
+) -> typing.List[str]:
     if not isinstance(raw_results, list) or len(raw_results) != criterion_count:
         raise gl.vm.UserError("validator returned the wrong number of criteria")
     results = []
     for raw_result in raw_results:
-        if raw_result not in (RESULT_PASS, RESULT_FAIL, RESULT_UNKNOWN):
+        if not isinstance(raw_result, str) or raw_result not in (
+            RESULT_PASS,
+            RESULT_FAIL,
+            RESULT_UNKNOWN,
+        ):
             raise gl.vm.UserError("validator returned an invalid criterion label")
         results.append(raw_result)
     return results
 
 
+def validate_candidate(candidate: typing.Any, criterion_count: int) -> typing.List[str]:
+    if not isinstance(candidate, dict) or set(candidate.keys()) != {
+        "criterion_results"
+    }:
+        raise gl.vm.UserError("validator output must contain exactly criterion_results")
+    return _validate_criterion_results(candidate["criterion_results"], criterion_count)
+
+
 def validate_evaluation(
     candidate: typing.Any, criterion_count: int
 ) -> typing.Dict[str, typing.Any]:
-    if not isinstance(candidate, dict):
-        raise gl.vm.UserError("evaluation output is not an object")
-    evidence_valid = candidate.get("evidence_valid")
+    if not isinstance(candidate, dict) or set(candidate.keys()) != {
+        "criterion_results",
+        "evidence_valid",
+    }:
+        raise gl.vm.UserError(
+            "evaluation output must contain exactly criterion_results and evidence_valid"
+        )
+    evidence_valid = candidate["evidence_valid"]
     if not isinstance(evidence_valid, bool):
         raise gl.vm.UserError("evaluation output has no valid evidence flag")
     return {
-        "criterion_results": validate_candidate(candidate, criterion_count),
+        "criterion_results": _validate_criterion_results(
+            candidate["criterion_results"], criterion_count
+        ),
         "evidence_valid": evidence_valid,
     }
 
 
 def derive_verdict(results: typing.List[str]) -> typing.Dict[str, typing.Any]:
+    if len(results) == 0:
+        raise gl.vm.UserError("cannot derive a verdict without criteria")
     passed = 0
     failed = 0
     unknown = 0
@@ -73,8 +96,10 @@ def derive_verdict(results: typing.List[str]) -> typing.Dict[str, typing.Any]:
             passed += 1
         elif result == RESULT_FAIL:
             failed += 1
-        else:
+        elif result == RESULT_UNKNOWN:
             unknown += 1
+        else:
+            raise gl.vm.UserError("cannot derive a verdict from an invalid label")
 
     if failed > 0:
         verdict = STATUS_REJECTED
@@ -105,34 +130,72 @@ class AgentPact(gl.contract.Contract):
         timestamp = gl.message.datetime.replace("Z", "+00:00")
         return u64(int(datetime.fromisoformat(timestamp).timestamp()))
 
+    def _require_address(self, value: typing.Any, field: str) -> typing.Any:
+        try:
+            return Address(value)
+        except Exception as exc:
+            raise gl.vm.UserError(field + " must be a valid address") from exc
+
+    def _utf8_bytes(self, value: typing.Any, field: str) -> bytes:
+        if not isinstance(value, str):
+            raise gl.vm.UserError(field + " must be text")
+        try:
+            return value.encode("utf-8")
+        except UnicodeError as exc:
+            raise gl.vm.UserError(field + " must contain valid UTF-8 text") from exc
+
     def _require_text(
-        self, value: str, field: str, minimum: int, maximum: int
+        self, value: str, field: str, minimum_bytes: int, maximum_bytes: int
     ) -> str:
+        self._utf8_bytes(value, field)
         normalized = value.strip()
-        if len(normalized) < minimum or len(normalized) > maximum:
+        encoded = self._utf8_bytes(normalized, field)
+        if len(encoded) < minimum_bytes or len(encoded) > maximum_bytes:
             raise gl.vm.UserError(field + " length is outside the allowed range")
         return normalized
 
     def _require_https_url(
         self, value: str, field: str, required: bool
     ) -> str:
-        normalized = value.strip()
-        if normalized == "":
+        if not isinstance(value, str):
+            raise gl.vm.UserError(field + " must be a bounded HTTPS URL")
+        if value == "":
             if required:
                 raise gl.vm.UserError(field + " is required")
             return ""
-        if len(normalized) > MAX_URL_LENGTH or not normalized.startswith("https://"):
+        encoded = self._utf8_bytes(value, field)
+        if len(encoded) > MAX_URL_BYTES:
             raise gl.vm.UserError(field + " must be a bounded HTTPS URL")
-        return normalized
+        for character in value:
+            if ord(character) < 32 or ord(character) == 127 or character.isspace():
+                raise gl.vm.UserError(field + " must be a bounded HTTPS URL")
+        try:
+            parsed = urlsplit(value)
+            hostname = parsed.hostname
+            _port = parsed.port
+        except (AttributeError, UnicodeError, ValueError) as exc:
+            raise gl.vm.UserError(field + " must be a bounded HTTPS URL") from exc
+        if (
+            not value.startswith("https://")
+            or
+            parsed.scheme != "https"
+            or hostname is None
+            or hostname == ""
+            or parsed.username is not None
+            or parsed.password is not None
+            or "#" in value
+            or parsed.netloc.endswith(":")
+        ):
+            raise gl.vm.UserError(field + " must be a bounded HTTPS URL")
+        return value
 
     def _require_sha256(self, value: str, field: str = "artifact_sha256") -> str:
-        normalized = value.strip()
-        if len(normalized) != 64 or normalized != normalized.lower():
+        if not isinstance(value, str) or len(value) != 64 or value != value.lower():
             raise gl.vm.UserError(field + " must be a lowercase SHA-256 digest")
-        for character in normalized:
+        for character in value:
             if character not in "0123456789abcdef":
                 raise gl.vm.UserError(field + " must be hexadecimal")
-        return normalized
+        return value
 
     def _criteria(self, value: str) -> str:
         normalized_items = []
@@ -164,8 +227,10 @@ class AgentPact(gl.contract.Contract):
         )
 
     def _require_party(self, commitment: typing.Dict[str, typing.Any]) -> None:
-        sender = str(gl.message.sender_address)
-        if sender != commitment["requester"] and sender != commitment["provider"]:
+        sender = self._require_address(gl.message.sender_address, "sender")
+        requester = self._require_address(commitment["requester"], "requester")
+        provider = self._require_address(commitment["provider"], "provider")
+        if sender != requester and sender != provider:
             raise gl.vm.UserError("caller is not a commitment party")
 
     def _evidence_urls(self, commitment: typing.Dict[str, typing.Any]) -> typing.List[str]:
@@ -179,16 +244,39 @@ class AgentPact(gl.contract.Contract):
         self, commitment: typing.Dict[str, typing.Any]
     ) -> typing.List[typing.Tuple[str, str, int]]:
         commitments = []
+        saw_empty_slot = False
         for index in range(1, MAX_EVIDENCE_URLS + 1):
             url = commitment["evidence_url_" + str(index)]
-            if url != "":
-                commitments.append(
-                    (
-                        url,
-                        commitment["evidence_sha256_" + str(index)],
-                        commitment["evidence_bytes_" + str(index)],
+            digest = commitment["evidence_sha256_" + str(index)]
+            byte_count = commitment["evidence_bytes_" + str(index)]
+            if url == "":
+                saw_empty_slot = True
+                if digest != "" or byte_count != 0:
+                    raise gl.vm.UserError(
+                        "optional evidence digest and byte count must be empty"
                     )
+                continue
+            if saw_empty_slot:
+                raise gl.vm.UserError("evidence URL slots must be contiguous")
+            clean_url = self._require_https_url(
+                url, "evidence_url_" + str(index), True
+            )
+            if byte_count <= 0 or byte_count > MAX_EVIDENCE_BYTES:
+                raise gl.vm.UserError(
+                    "evidence_bytes_" + str(index) + " is outside the allowed range"
                 )
+            clean_digest = self._require_sha256(
+                digest, "evidence_sha256_" + str(index)
+            )
+            commitments.append((clean_url, clean_digest, int(byte_count)))
+        if len(commitments) < commitment["minimum_evidence"]:
+            raise gl.vm.UserError("not enough evidence URLs were supplied")
+        for index in range(len(commitments)):
+            if commitments[index][0] == commitment["artifact_url"]:
+                raise gl.vm.UserError("evidence URLs must differ from the artifact URL")
+            for other_index in range(index + 1, len(commitments)):
+                if commitments[index][0] == commitments[other_index][0]:
+                    raise gl.vm.UserError("evidence URLs must be distinct")
         return commitments
 
     @gl.public.write
@@ -201,19 +289,21 @@ class AgentPact(gl.contract.Contract):
         deadline: u64,
         minimum_evidence: u8,
     ) -> str:
-        provider_address = Address(provider)
-        requester = gl.message.sender_address
+        provider_address = self._require_address(provider, "provider")
+        requester = self._require_address(gl.message.sender_address, "requester")
+        if provider_address == Address("0x" + ("0" * 40)):
+            raise gl.vm.UserError("provider cannot be the zero address")
         if provider_address == requester:
             raise gl.vm.UserError("requester and provider must be different")
         if minimum_evidence < u8(1) or minimum_evidence > u8(MAX_EVIDENCE_URLS):
             raise gl.vm.UserError("minimum_evidence must be between 1 and 3")
 
-        clean_title = self._require_text(title, "title", 1, MAX_TITLE_LENGTH)
+        clean_title = self._require_text(title, "title", 1, MAX_TITLE_BYTES)
         clean_specification = self._require_text(
-            specification, "specification", 1, MAX_SPECIFICATION_LENGTH
+            specification, "specification", 1, MAX_SPECIFICATION_BYTES
         )
         clean_criteria = self._require_text(
-            acceptance_criteria, "acceptance_criteria", 1, MAX_CRITERIA_LENGTH
+            acceptance_criteria, "acceptance_criteria", 1, MAX_CRITERIA_BYTES
         )
         clean_criteria = self._criteria(clean_criteria)
         now = self._now()
@@ -281,7 +371,9 @@ class AgentPact(gl.contract.Contract):
         evidence_bytes_3: u64,
     ) -> None:
         commitment = self._get(commitment_id)
-        if str(gl.message.sender_address) != commitment["provider"]:
+        sender = self._require_address(gl.message.sender_address, "sender")
+        provider = self._require_address(commitment["provider"], "provider")
+        if sender != provider:
             raise gl.vm.UserError("only the provider can submit the delivery")
         if commitment["status"] != STATUS_COMMITTED:
             raise gl.vm.UserError("commitment is not awaiting a delivery")
@@ -308,7 +400,7 @@ class AgentPact(gl.contract.Contract):
                 url, "evidence_url_" + str(index), required
             )
             if clean_url == "":
-                if digest.strip() != "" or byte_count != u64(0):
+                if digest != "" or byte_count != u64(0):
                     raise gl.vm.UserError(
                         "optional evidence digest and byte count must be empty"
                     )
@@ -326,16 +418,7 @@ class AgentPact(gl.contract.Contract):
             commitment["evidence_url_" + str(index)] = clean_url
             commitment["evidence_sha256_" + str(index)] = clean_digest
             commitment["evidence_bytes_" + str(index)] = clean_bytes
-        evidence_count = len(self._evidence_urls(commitment))
-        if evidence_count < commitment["minimum_evidence"]:
-            raise gl.vm.UserError("not enough evidence URLs were supplied")
-        evidence_urls = self._evidence_urls(commitment)
-        for index in range(len(evidence_urls)):
-            if evidence_urls[index] == commitment["artifact_url"]:
-                raise gl.vm.UserError("evidence URLs must differ from the artifact URL")
-            for other_index in range(index + 1, len(evidence_urls)):
-                if evidence_urls[index] == evidence_urls[other_index]:
-                    raise gl.vm.UserError("evidence URLs must be distinct")
+        self._evidence_commitments(commitment)
         commitment["submitted_at"] = int(self._now())
         commitment["status"] = STATUS_SUBMITTED
         self._save(commitment_id, commitment)
@@ -343,12 +426,14 @@ class AgentPact(gl.contract.Contract):
     @gl.public.write
     def open_dispute(self, commitment_id: str, reason: str) -> None:
         commitment = self._get(commitment_id)
-        if str(gl.message.sender_address) != commitment["requester"]:
+        sender = self._require_address(gl.message.sender_address, "sender")
+        requester = self._require_address(commitment["requester"], "requester")
+        if sender != requester:
             raise gl.vm.UserError("only the requester can open a dispute")
         if commitment["status"] != STATUS_SUBMITTED:
             raise gl.vm.UserError("commitment is not awaiting a dispute")
         commitment["dispute_reason"] = self._require_text(
-            reason, "reason", 1, MAX_REASON_LENGTH
+            reason, "reason", 1, MAX_REASON_BYTES
         )
         commitment["disputed_at"] = int(self._now())
         commitment["status"] = STATUS_DISPUTED
@@ -389,6 +474,11 @@ class AgentPact(gl.contract.Contract):
 
         def evaluate_delivery() -> typing.Dict[str, typing.Any]:
             try:
+                self._require_https_url(artifact_url, "artifact_url", True)
+                self._require_sha256(artifact_sha256)
+                if artifact_bytes <= 0 or artifact_bytes > MAX_ARTIFACT_BYTES:
+                    return unknown_evaluation()
+                evidence_commitments = self._evidence_commitments(commitment)
                 artifact_response = gl.nondet.web.get(artifact_url)
                 if artifact_response.status != 200:
                     return unknown_evaluation()
@@ -407,11 +497,7 @@ class AgentPact(gl.contract.Contract):
                 artifact_text = artifact_body.decode("utf-8")
 
                 evidence_texts = []
-                for (
-                    evidence_url,
-                    evidence_sha256,
-                    evidence_bytes,
-                ) in self._evidence_commitments(commitment):
+                for evidence_url, evidence_sha256, evidence_bytes in evidence_commitments:
                     evidence_response = gl.nondet.web.get(evidence_url)
                     if evidence_response.status != 200:
                         return unknown_evaluation()
@@ -446,7 +532,7 @@ class AgentPact(gl.contract.Contract):
                     + "\n\nDISPUTE REASON:\n"
                     + dispute_reason
                     + "\n\nDELIVERABLE:\n<untrusted-artifact>\n"
-                    + artifact_text[:12_000]
+                    + artifact_text
                     + "\n</untrusted-artifact>\n\nEVIDENCE:\n"
                     + "\n---\n".join(
                         "<untrusted-evidence>\n"

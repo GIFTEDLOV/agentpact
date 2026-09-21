@@ -3,5 +3,14 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
+.env.*
+!.env.example
 .secrets/
-
+artifacts/
+.coverage
+.mypy_cache/
+*.pem
+*.key
+*.keystore
+*.mnemonic
+*.secret

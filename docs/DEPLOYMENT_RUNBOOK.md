@@ -1,54 +1,57 @@
 # AgentPact deployment runbook
 
-## Current corrected deployment
+## Release-candidate rule
 
-Use the explicit Studio-dev network only:
+Do not deploy from this run. The next submission requires one NEW deployment of the exact final hardened GitHub source after all local and Studio-dev raw-source gates pass. Do not reuse either historical address.
+
+Historical coordinates:
+
+```text
+older rejected contract: 0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF
+corrected historical contract: 0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46
+corrected historical deployment tx: 0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f
+historical corrected source SHA: bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8
+```
+
+No future deployment address or transaction is written here until a separate deployment run completes and Explorer/source evidence matches the frozen hardened SHA byte-for-byte.
+
+## Network and runner
 
 ```text
 chain: 61997
 rpc: https://studio-dev.genlayer.com/api
-contract: 0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46
-deployment tx: 0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f
-source sha256: bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8
+runner: py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng
 repository: https://github.com/GIFTEDLOV/agentpact
 ```
 
-The former deployment `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF` with transaction `0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a` and source SHA `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9` is HISTORICAL because its source predates the semantic-validator correction. The corrected deployment was broadcast exactly once, then verified as `FINALIZED`, `FINISHED_WITH_RETURN`, and `MAJORITY_AGREE`; its live schema matches preflight and `gen_getContractCode` matches the source SHA above. Never rebroadcast this deployment.
+## Validation before a future deployment
 
-The prior deployment `0xdA8781136eB4e59A5216e8891113222C42928a8C` with transaction `0xfb84525500c58217ddf393a9bcacf2c6becf83ad824e7ad7276e9dfb2c8ebaf9` is historical only and is not a current coordinate.
+From the repository root, freeze the source hash and run every gate:
 
-## Validation before deployment
-
-Run from the repository root and record the exact source hash:
-
-```bash
+```text
 sha256sum contracts/agent_pact.py
-.venv/bin/pytest -q
+python -m pytest -q
+python -m py_compile contracts/agent_pact.py
 genvm-lint lint contracts/agent_pact.py
 genvm-lint validate contracts/agent_pact.py
 genvm-lint check contracts/agent_pact.py
 genvm-lint schema contracts/agent_pact.py
-python -m py_compile contracts/agent_pact.py
+genvm-lint typecheck contracts/agent_pact.py
 git diff --check
 ```
 
-Run `gen_getContractSchemaForCode` against `https://studio-dev.genlayer.com/api` and require HTTP 200. The exact 11-method schema is recorded in [`VALIDATION.md`](VALIDATION.md); `submit_delivery` must include the artifact URL/SHA/bytes and three URL/SHA/bytes evidence triples. Check requester balance, latest nonce, pending nonce, and the deployment fee profile before signing. If source changes after a deployment, stop and obtain a new deployment confirmation; never blind-rebroadcast.
+Run raw-source `gen_getContractSchemaForCode` against the RPC and require HTTP 200, `AgentPact`, zero constructor parameters, the exact 11-method ABI, the pinned runner, and no E106/import/runner/schema error. Stop if the source changes after preflight.
+
+Only after these checks should a separately authorized deployment run sign one transaction. Record the future deployment address, transaction, finalization state, Explorer source verification, and deployed-source SHA in a new handoff entry. Never blind-rebroadcast.
 
 ## Evidence commitments
 
-`submit_delivery` commits:
+`submit_delivery` commits the artifact URL/SHA/byte count and up to three evidence URL/SHA/byte-count triples. All populated URLs must be strict bounded HTTPS values. Evidence slots are contiguous; every empty optional slot has an empty digest and zero byte count; populated evidence URLs are distinct and differ from the artifact URL.
 
-```text
-commitment_id, artifact_url, artifact_sha256, artifact_bytes,
-evidence_url_1, evidence_sha256_1, evidence_bytes_1,
-evidence_url_2, evidence_sha256_2, evidence_bytes_2,
-evidence_url_3, evidence_sha256_3, evidence_bytes_3
-```
+The hardened V1 artifact and evidence limits are both `12,000` bytes. At adjudication, the leader and validator independently fetch every committed body and verify HTTP success, nonempty body, exact byte count, exact lowercase SHA-256, and UTF-8 decoding. Any failure maps all criteria to `UNKNOWN`, `evidence_valid=false`, and `INCONCLUSIVE`.
 
-All URLs must be public HTTPS transport locations. Each required evidence byte count must be greater than zero and no greater than `MAX_EVIDENCE_BYTES = 12,000`; evidence URLs must be distinct and different from the artifact URL. At adjudication, every response is checked for HTTP success, a body, exact committed byte count, exact committed SHA-256, and UTF-8 decoding before semantic use. Any failure maps all criteria to `UNKNOWN`, `evidence_valid=false`, and `INCONCLUSIVE`.
+## Lifecycle proof for the future deployment
 
-## Lifecycle proof procedure
+Use disposable Studio-dev accounts and public HTTPS fixtures. Use separate commitments for accepted, rejected, artifact-mismatch inconclusive, evidence-failure inconclusive, mutable-evidence inconclusive, and expired branches. Record each transaction hash and verify `FINALIZED / FINISHED_WITH_RETURN / MAJORITY_AGREE` through the RPC.
 
-Use only disposable Studio-dev accounts and public HTTPS fixtures. Use a separate commitment for accepted, rejected, artifact-mismatch inconclusive, evidence-failure inconclusive, mutable-evidence attack, and expired branches. Record every transaction hash and verify each through the RPC as `FINALIZED / FINISHED_WITH_RETURN / MAJORITY_AGREE`.
-
-For submitted branches, record create, provider-only submit, requester-only dispute, adjudicate, and read-only `get_commitment`/`get_verdict` state. For expiry, create with no delivery, read the exact deadline, wait until it has passed, expire, and record `EXPIRED`. The complete final evidence is in [`RELEASE_HANDOFF.md`](RELEASE_HANDOFF.md).
+For submitted branches, record create, provider-only submit, requester-only dispute, adjudication, and read-only state. For expiry, create with no delivery, wait past the exact message-time deadline, expire, and record `EXPIRED`. All lifecycle evidence from the previous deployment is historical and cannot substitute for proof from the new deployment.

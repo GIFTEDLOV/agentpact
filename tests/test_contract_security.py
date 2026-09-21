@@ -1,6 +1,7 @@
 import hashlib
 import json
 import types
+from datetime import datetime, timezone
 
 import pytest
 
@@ -64,6 +65,14 @@ def _agent(status=module.STATUS_DISPUTED):
     agent.commitment_ids = []
     agent.next_id = 1
     agent.commitments["pact-1"] = json.dumps(_commitment(status))
+    return agent
+
+
+def _fresh_agent():
+    agent = module.AgentPact()
+    agent.commitments = {}
+    agent.commitment_ids = []
+    agent.next_id = 0
     return agent
 
 
@@ -198,7 +207,10 @@ def test_prompt_injection_payload_cannot_bypass_result_schema(monkeypatch):
     agent.adjudicate("pact-1")
     assert "<untrusted-artifact>" in captured[0]
     assert "<untrusted-evidence>" in captured[0]
-    assert json.loads(agent.commitments["pact-1"])["status"] == module.STATUS_ACCEPTED
+    state = json.loads(agent.commitments["pact-1"])
+    assert state["status"] == module.STATUS_INCONCLUSIVE
+    assert state["criterion_results"] == '["UNKNOWN"]'
+    assert state["evidence_valid"] is False
 
 
 def test_terminal_result_cannot_be_adjudicated_again(monkeypatch):
@@ -270,3 +282,388 @@ def test_submit_rejects_evidence_over_explicit_bound(monkeypatch):
             "",
             0,
         )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.com",
+        "https://",
+        "https://user@example.com/x",
+        "https://user:pass@example.com/x",
+        "https://example.com:bad/x",
+        "https://example.com/x#fragment",
+        "https://example.com/#",
+        "HTTPS://example.com/x",
+        "https://example.com/\r\nInjected: x",
+    ],
+)
+def test_strict_https_url_validation_rejects_adversarial_values(url):
+    with pytest.raises(ValueError):
+        _fresh_agent()._require_https_url(url, "url", True)
+
+
+def test_strict_https_url_validation_accepts_ordinary_https():
+    agent = _fresh_agent()
+    assert (
+        agent._require_https_url("https://example.com:443/path?q=1", "url", True)
+        == "https://example.com:443/path?q=1"
+    )
+
+
+def test_url_byte_bound_is_utf8_bytes():
+    agent = _fresh_agent()
+    prefix = "https://example.com/"
+    exact = prefix + "é" * (
+        (module.MAX_URL_BYTES - len(prefix.encode("utf-8"))) // 2
+    )
+    assert len(exact.encode("utf-8")) == module.MAX_URL_BYTES
+    assert agent._require_https_url(exact, "url", True) == exact
+    with pytest.raises(ValueError):
+        agent._require_https_url(exact + "a", "url", True)
+
+
+def test_text_bounds_are_utf8_bytes_and_invalid_surrogates_fail():
+    agent = _fresh_agent()
+    exact_inputs = (
+        ("title", "é" * (module.MAX_TITLE_BYTES // 2), module.MAX_TITLE_BYTES),
+        (
+            "specification",
+            "é" * (module.MAX_SPECIFICATION_BYTES // 2),
+            module.MAX_SPECIFICATION_BYTES,
+        ),
+        (
+            "acceptance_criteria",
+            "é" * (module.MAX_CRITERIA_BYTES // 2),
+            module.MAX_CRITERIA_BYTES,
+        ),
+        ("reason", "é" * (module.MAX_REASON_BYTES // 2), module.MAX_REASON_BYTES),
+    )
+    for field, value, limit in exact_inputs:
+        assert len(value.encode("utf-8")) == limit
+        assert agent._require_text(value, field, 1, limit) == value
+        with pytest.raises(ValueError):
+            agent._require_text(value + "é", field, 1, limit)
+    with pytest.raises(ValueError):
+        agent._require_text("\ud800", "title", 1, module.MAX_TITLE_BYTES)
+
+
+def test_sha256_requires_exact_lowercase_hex_without_normalization():
+    agent = _fresh_agent()
+    digest = "a" * 64
+    assert agent._require_sha256(digest) == digest
+    for invalid in (digest.upper(), " " + digest, digest + " ", digest[:-1]):
+        with pytest.raises(ValueError):
+            agent._require_sha256(invalid)
+
+
+def test_zero_same_and_malformed_provider_are_rejected(monkeypatch):
+    agent = _fresh_agent()
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+    deadline = agent._now() + 100
+    for provider in ("0x" + "0" * 40, REQUESTER, "not-an-address"):
+        with pytest.raises(ValueError):
+            agent.create_commitment(
+                provider, "title", "specification", "criterion", deadline, 1
+            )
+
+
+def test_address_case_formatting_cannot_bypass_party_authorization(monkeypatch):
+    agent = _agent(module.STATUS_COMMITTED)
+    monkeypatch.setattr(
+        module.gl.message,
+        "sender_address",
+        "0x" + PROVIDER[2:].upper(),
+    )
+    evidence = b"AGENTPACT-SECURITY-EVIDENCE"
+    agent.submit_delivery(
+        "pact-1",
+        ARTIFACT_URL,
+        _digest(b"AGENTPACT-SECURITY-ARTIFACT"),
+        len(b"AGENTPACT-SECURITY-ARTIFACT"),
+        EVIDENCE_URL,
+        _digest(evidence),
+        len(evidence),
+        "",
+        "",
+        0,
+        "",
+        "",
+        0,
+    )
+    assert json.loads(agent.commitments["pact-1"])["status"] == module.STATUS_SUBMITTED
+
+
+def test_optional_evidence_tuples_and_slots_are_consistent(monkeypatch):
+    agent = _agent(module.STATUS_COMMITTED)
+    monkeypatch.setattr(module.gl.message, "sender_address", PROVIDER)
+    with pytest.raises(ValueError):
+        agent.submit_delivery(
+            "pact-1",
+            ARTIFACT_URL,
+            _digest(b"AGENTPACT-SECURITY-ARTIFACT"),
+            len(b"AGENTPACT-SECURITY-ARTIFACT"),
+            EVIDENCE_URL,
+            _digest(b"AGENTPACT-SECURITY-EVIDENCE"),
+            len(b"AGENTPACT-SECURITY-EVIDENCE"),
+            "",
+            " ",
+            0,
+            "https://fixtures.example/evidence-3.txt",
+            _digest(b"third evidence"),
+            len(b"third evidence"),
+        )
+
+
+def test_deadline_logic_uses_message_time_and_honors_exact_boundaries(monkeypatch):
+    agent = _agent(module.STATUS_COMMITTED)
+    state = json.loads(agent.commitments["pact-1"])
+    state["deadline"] = 1
+    agent.commitments["pact-1"] = json.dumps(state)
+    monkeypatch.setattr(module.gl.message, "datetime", "1970-01-01T00:00:00+00:00")
+    monkeypatch.setattr(module.gl.message, "sender_address", PROVIDER)
+    evidence = b"AGENTPACT-SECURITY-EVIDENCE"
+    agent.submit_delivery(
+        "pact-1",
+        ARTIFACT_URL,
+        _digest(b"AGENTPACT-SECURITY-ARTIFACT"),
+        len(b"AGENTPACT-SECURITY-ARTIFACT"),
+        EVIDENCE_URL,
+        _digest(evidence),
+        len(evidence),
+        "",
+        "",
+        0,
+        "",
+        "",
+        0,
+    )
+    assert json.loads(agent.commitments["pact-1"])["status"] == module.STATUS_SUBMITTED
+
+    exact_agent = _agent(module.STATUS_COMMITTED)
+    exact_state = json.loads(exact_agent.commitments["pact-1"])
+    exact_time = datetime.fromtimestamp(exact_state["deadline"], timezone.utc).isoformat()
+    monkeypatch.setattr(module.gl.message, "datetime", exact_time)
+    monkeypatch.setattr(module.gl.message, "sender_address", PROVIDER)
+    exact_agent.submit_delivery(
+        "pact-1",
+        ARTIFACT_URL,
+        _digest(b"AGENTPACT-SECURITY-ARTIFACT"),
+        len(b"AGENTPACT-SECURITY-ARTIFACT"),
+        EVIDENCE_URL,
+        _digest(evidence),
+        len(evidence),
+        "",
+        "",
+        0,
+        "",
+        "",
+        0,
+    )
+
+    expire_agent = _agent(module.STATUS_COMMITTED)
+    expire_state = json.loads(expire_agent.commitments["pact-1"])
+    exact_time = datetime.fromtimestamp(expire_state["deadline"], timezone.utc).isoformat()
+    monkeypatch.setattr(module.gl.message, "datetime", exact_time)
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+    with pytest.raises(ValueError):
+        expire_agent.expire_unsubmitted("pact-1")
+    monkeypatch.setattr(
+        module.gl.message,
+        "datetime",
+        datetime.fromtimestamp(expire_state["deadline"] + 1, timezone.utc).isoformat(),
+    )
+    expire_agent.expire_unsubmitted("pact-1")
+    assert json.loads(expire_agent.commitments["pact-1"])["status"] == module.STATUS_EXPIRED
+
+
+def test_artifact_boundary_is_accepted_and_boundary_plus_one_is_rejected(monkeypatch):
+    boundary = b"x" * module.MAX_ARTIFACT_BYTES
+    evidence = b"evidence"
+    monkeypatch.setattr(module.gl.message, "sender_address", PROVIDER)
+    exact_agent = _agent(module.STATUS_COMMITTED)
+    exact_agent.submit_delivery(
+        "pact-1",
+        ARTIFACT_URL,
+        _digest(boundary),
+        len(boundary),
+        EVIDENCE_URL,
+        _digest(evidence),
+        len(evidence),
+        "",
+        "",
+        0,
+        "",
+        "",
+        0,
+    )
+    assert json.loads(exact_agent.commitments["pact-1"])["artifact_bytes"] == module.MAX_ARTIFACT_BYTES
+
+    oversized_agent = _agent(module.STATUS_COMMITTED)
+    with pytest.raises(ValueError):
+        oversized_agent.submit_delivery(
+            "pact-1",
+            ARTIFACT_URL,
+            _digest(boundary + b"x"),
+            module.MAX_ARTIFACT_BYTES + 1,
+            EVIDENCE_URL,
+            _digest(evidence),
+            len(evidence),
+            "",
+            "",
+            0,
+            "",
+            "",
+            0,
+        )
+
+
+def test_complete_artifact_reaches_semantic_evaluation(monkeypatch):
+    tail = b"FINAL-PORTION-CONTRADICTS"
+    artifact = b"A" * (module.MAX_ARTIFACT_BYTES - len(tail)) + tail
+    agent = _agent()
+    state = json.loads(agent.commitments["pact-1"])
+    state["artifact_sha256"] = _digest(artifact)
+    state["artifact_bytes"] = len(artifact)
+    agent.commitments["pact-1"] = json.dumps(state)
+    captured = []
+    responses = _responses(artifact=artifact)
+
+    def prompt(text, response_format="json"):
+        captured.append(text)
+        return {"criterion_results": ["FAIL"] if tail.decode() in text else ["PASS"]}
+
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+    monkeypatch.setattr(module.gl.nondet.web, "get", lambda url: responses[url])
+    monkeypatch.setattr(module.gl.nondet, "exec_prompt", prompt)
+    agent.adjudicate("pact-1")
+    state = json.loads(agent.commitments["pact-1"])
+    assert tail.decode() in captured[0]
+    assert state["status"] == module.STATUS_REJECTED
+    assert state["criterion_results"] == '["FAIL"]'
+
+
+@pytest.mark.parametrize(
+    "leader_label,validator_label",
+    [("PASS", "FAIL"), ("PASS", "UNKNOWN")],
+)
+def test_consensus_validator_rejects_leader_disagreement(
+    monkeypatch, leader_label, validator_label
+):
+    agent = _agent()
+    outputs = iter(
+        [
+            {"criterion_results": [leader_label]},
+            {"criterion_results": [validator_label]},
+        ]
+    )
+    responses = _responses()
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+    monkeypatch.setattr(module.gl.nondet.web, "get", lambda url: responses[url])
+    monkeypatch.setattr(
+        module.gl.nondet,
+        "exec_prompt",
+        lambda _prompt, response_format="json": next(outputs),
+    )
+
+    def reject_disagreement(leader_fn, validator_fn, **_kwargs):
+        leader_data = leader_fn()
+        if not validator_fn(module.gl.vm.Return(leader_data)):
+            raise ValueError("consensus disagreement")
+        return leader_data
+
+    monkeypatch.setattr(module.gl.vm, "run_nondet", reject_disagreement)
+    with pytest.raises(ValueError):
+        agent.adjudicate("pact-1")
+    assert json.loads(agent.commitments["pact-1"])["status"] == module.STATUS_DISPUTED
+
+
+def test_consensus_validator_rejects_leader_extra_field(monkeypatch):
+    agent = _agent()
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+    monkeypatch.setattr(module.gl.nondet.web, "get", lambda url: _responses()[url])
+    monkeypatch.setattr(
+        module.gl.nondet,
+        "exec_prompt",
+        lambda _prompt, response_format="json": {"criterion_results": ["PASS"]},
+    )
+
+    def extra_leader_result(leader_fn, _validator_fn, **_kwargs):
+        leader_fn()
+        return {"criterion_results": ["PASS"], "evidence_valid": True, "extra": 1}
+
+    monkeypatch.setattr(module.gl.vm, "run_nondet", extra_leader_result)
+    with pytest.raises(ValueError):
+        agent.adjudicate("pact-1")
+    assert json.loads(agent.commitments["pact-1"])["status"] == module.STATUS_DISPUTED
+
+
+def test_consensus_validator_rejects_evidence_validity_disagreement(monkeypatch):
+    agent = _agent()
+    responses = _responses()
+    call_count = {"value": 0}
+
+    def get(url):
+        call_count["value"] += 1
+        if call_count["value"] == 4 and url == EVIDENCE_URL:
+            return types.SimpleNamespace(status=503, body=b"down")
+        return responses[url]
+
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+    monkeypatch.setattr(module.gl.nondet.web, "get", get)
+    monkeypatch.setattr(
+        module.gl.nondet,
+        "exec_prompt",
+        lambda _prompt, response_format="json": {"criterion_results": ["PASS"]},
+    )
+
+    def reject_disagreement(leader_fn, validator_fn, **_kwargs):
+        leader_data = leader_fn()
+        if not validator_fn(module.gl.vm.Return(leader_data)):
+            raise ValueError("consensus disagreement")
+        return leader_data
+
+    monkeypatch.setattr(module.gl.vm, "run_nondet", reject_disagreement)
+    with pytest.raises(ValueError):
+        agent.adjudicate("pact-1")
+    assert json.loads(agent.commitments["pact-1"])["status"] == module.STATUS_DISPUTED
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda r: r.__setitem__(ARTIFACT_URL, types.SimpleNamespace(status=404, body=b"missing")),
+        lambda r: r.__setitem__(ARTIFACT_URL, types.SimpleNamespace(status=500, body=b"error")),
+        lambda r: r.__setitem__(ARTIFACT_URL, types.SimpleNamespace(status=503, body=b"down")),
+        lambda r: r.__setitem__(ARTIFACT_URL, types.SimpleNamespace(status=200, body=None)),
+        lambda r: r.__setitem__(ARTIFACT_URL, types.SimpleNamespace(status=200, body=b"")),
+        lambda r: r.__setitem__(ARTIFACT_URL, types.SimpleNamespace(status=200, body=b"x" * (module.MAX_ARTIFACT_BYTES + 1))),
+    ],
+)
+def test_artifact_failure_modes_fail_closed(monkeypatch, mutator):
+    responses = _responses()
+    mutator(responses)
+    state = _adjudicate(monkeypatch, responses)
+    assert state["status"] == module.STATUS_INCONCLUSIVE
+    assert state["verdict"] == module.STATUS_INCONCLUSIVE
+    assert state["criterion_results"] == '["UNKNOWN"]'
+    assert state["evidence_valid"] is False
+
+
+def test_network_exception_fails_closed(monkeypatch):
+    agent = _agent()
+    monkeypatch.setattr(module.gl.message, "sender_address", REQUESTER)
+
+    def fail(_url):
+        raise RuntimeError("network unavailable")
+
+    monkeypatch.setattr(module.gl.nondet.web, "get", fail)
+    monkeypatch.setattr(
+        module.gl.nondet,
+        "exec_prompt",
+        lambda _prompt, response_format="json": {"criterion_results": ["PASS"]},
+    )
+    agent.adjudicate("pact-1")
+    state = json.loads(agent.commitments["pact-1"])
+    assert state["status"] == module.STATUS_INCONCLUSIVE
+    assert state["evidence_valid"] is False

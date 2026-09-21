@@ -17,7 +17,15 @@ class _DynArray(list):
 
 
 class _Address(str):
-    pass
+    def __new__(cls, value):
+        text = str(value)
+        if (
+            len(text) != 42
+            or text[:2].lower() != "0x"
+            or any(character not in "0123456789abcdefABCDEF" for character in text[2:])
+        ):
+            raise ValueError("invalid address")
+        return str.__new__(cls, "0x" + text[2:].lower())
 
 
 class _Return:
