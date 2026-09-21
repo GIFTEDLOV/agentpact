@@ -62,9 +62,9 @@ The hardened V1 artifact and evidence limits are both `12,000` bytes. At adjudic
 
 ## Lifecycle proof for the new deployment
 
-The live proof used disposable funded Studio-dev accounts and immutable raw GitHub fixtures pinned to commit `089a034df3e4e6aac0cd71e10cabe266f8d8028f`. The accepted fixture SHA/bytes were artifact `c64a0d022f3c0159af763ca39483752b950545cdc21cd4d32656ae4abbfd17d1` / `81` and evidence `53b25c14405091d63c27db23cd5045015fd6845b7ba3bee3ff834c985580955c` / `107`.
+The live proof used disposable funded Studio-dev accounts and immutable raw GitHub fixtures. The exact acceptance proof used commit `464868b` with README artifact SHA/bytes `73f443027862400f8ee5e12d25ea5b108c7b971f91a1c7cbe565d8a87366d19b` / `4063` and validation evidence SHA/bytes `a99244a2dcc9c99f0f624c8398576a6006fbebb0a57332fcdb91ca6beb85b26a` / `7390`. The acceptance criterion was `AGENTPACT-HARDENED-RELEASE-PASS`.
 
-Accepted transaction chain: create `0xc3eb70fc1ef6336eced9d94ed90cffd668a063af8822a81035a159cf6213bef2`, submit `0x76773042fb892b2547afa65c8b63bf322fc3ff0a9a67b41096ddb6c5d8e6b27e`, dispute `0xc01cb1a2a99ef1d1e18afe4c9dd848a1415f9545bb30d9aec000a44422e24f96`, adjudicate `0x5e7db2653384762c8704dab6bd175a8b2f6c873a4a0ec57fa6945879b3439e6f`.
+Exact accepted transaction chain: create `0xec71479ae77d367f3e91ec152a8388b59ae6cd37bcd3fb771749c4bbddfdc399`, submit `0x8242cb67dcf7ba853d878a29c18d5e97df7237e3fcae6281e5290a33f82081b0`, dispute `0x5d21a93723d3e2c400e0f26585ad24991ba90968a05d972813009cf4e4094355`, adjudicate `0xf3db7dfe28beb6f521c11bc1ea01e00f79dad32cdf73265295018ed644185903` (`pact-4`).
 
 Rejected transaction chain: create `0xbd0086bcf40f69271cf259528f988475d24892439807c24ca0dc38765760572d`, submit `0x747d51e034cd271667e550769c327111487f722bddc2055a29383420fc6e561a`, dispute `0x7374d36d6494593ceb8713600d3b9c1772af9eee412764970be9a2f99928fe81`, adjudicate `0x53b1b984460885fa996d5d5202959eb14720754d7c0565390fa0678c8ccd079f`.
 

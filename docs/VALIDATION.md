@@ -31,11 +31,11 @@ All live writes finalized with `FINISHED_WITH_RETURN` and `MAJORITY_AGREE` unles
 
 | Proof | Commitment | Evaluation transaction | Result |
 |---|---|---|---|
-| Accepted | `pact-1` | `0x5e7db2653384762c8704dab6bd175a8b2f6c873a4a0ec57fa6945879b3439e6f` | `ACCEPTED`, score 100, `evidence_valid=true`, `PASS` |
+| Accepted | `pact-4` | `0xf3db7dfe28beb6f521c11bc1ea01e00f79dad32cdf73265295018ed644185903` | `ACCEPTED`, score 100, `evidence_valid=true`, `PASS` |
 | Rejected | `pact-2` | `0x53b1b984460885fa996d5d5202959eb14720754d7c0565390fa0678c8ccd079f` | `REJECTED`, `evidence_valid=true`, `FAIL` |
 | Inconclusive | `pact-3` | `0x70afc6e166012dff20a5fa2326bfdfea8bd79127b15201f7f9abcaa12449cfff` | `INCONCLUSIVE`, `evidence_valid=false`, `UNKNOWN` |
 
-The inconclusive proof used a validly shaped but intentionally incorrect evidence SHA-256 commitment.
+The accepted proof used the exact criterion `AGENTPACT-HARDENED-RELEASE-PASS` against the pinned GitHub README artifact. The inconclusive proof used a validly shaped but intentionally incorrect evidence SHA-256 commitment.
 
 `contract_info()` verified `name=AgentPact`, `version=0.1.0`, purpose `evidence-backed commitment adjudication`, `max_criteria=8`, `max_evidence_urls=3`, `max_artifact_bytes=12000`, `max_evidence_bytes=12000`, and the complete seven-status list.
 

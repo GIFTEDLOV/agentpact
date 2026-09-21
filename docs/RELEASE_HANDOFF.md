@@ -52,12 +52,12 @@ The final handoff includes, from the NEW deployment:
 Lifecycle evaluation transactions:
 
 ```text
-ACCEPTED:     0x5e7db2653384762c8704dab6bd175a8b2f6c873a4a0ec57fa6945879b3439e6f
+ACCEPTED:     0xf3db7dfe28beb6f521c11bc1ea01e00f79dad32cdf73265295018ed644185903
 REJECTED:     0x53b1b984460885fa996d5d5202959eb14720754d7c0565390fa0678c8ccd079f
 INCONCLUSIVE: 0x70afc6e166012dff20a5fa2326bfdfea8bd79127b15201f7f9abcaa12449cfff
 ```
 
-The live contract reports `AgentPact`, version `0.1.0`, 8 criteria, 3 evidence URLs, 12,000-byte artifact/evidence limits, and the expected seven statuses. The final local regression remained 52 passing tests with validation, check, schema, typecheck, and source SHA gates passing.
+The live contract reports `AgentPact`, version `0.1.0`, 8 criteria, 3 evidence URLs, 12,000-byte artifact/evidence limits, and the expected seven statuses. The exact accepted proof used criterion `AGENTPACT-HARDENED-RELEASE-PASS` and finalized with `ACCEPTED`, score 100, and `evidence_valid=true`. The final local regression remained 52 passing tests with validation, check, schema, typecheck, and source SHA gates passing.
 
 Submission evidence:
 
