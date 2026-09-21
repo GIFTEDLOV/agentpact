@@ -12,6 +12,7 @@ The hardened source was deployed exactly once to Studio-dev after all local, raw
 - Source SHA-256: `2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af`.
 - Runner: `py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng`.
 - SDK: `genlayer-js 2.0.0-rc.1`; chain `61997`; RPC `https://studio-dev.genlayer.com/api`.
+- Public release acceptance marker: `AGENTPACT-HARDENED-RELEASE-PASS`.
 
 Historical deployments, never to be reused:
 
