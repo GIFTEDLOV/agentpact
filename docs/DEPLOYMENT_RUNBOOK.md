@@ -1,8 +1,8 @@
 # AgentPact deployment runbook
 
-## Release-candidate rule
+## Verified release record
 
-Do not deploy from this run. The next submission requires one NEW deployment of the exact final hardened GitHub source after all local and Studio-dev raw-source gates pass. Do not reuse either historical address.
+The hardened source has been deployed once through the direct `genlayer-js 2.0.0-rc.1` path. Do not reuse either historical address and do not rebroadcast the deployment transaction.
 
 Historical coordinates:
 
@@ -13,7 +13,17 @@ corrected historical deployment tx: 0xf6971beb416d81ce171de96eed9986ee1e546bc473
 historical corrected source SHA: bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8
 ```
 
-No future deployment address or transaction is written here until a separate deployment run completes and Explorer/source evidence matches the frozen hardened SHA byte-for-byte.
+New live deployment:
+
+```text
+contract: 0xd8a44cc6D81eeb54A51071F790c242AE03e19157
+deployment tx: 0x338f0cccd6077a04be92ded0aabc80ac4584cfbf3f1631dd03707fdee28f11ae
+explorer: https://explorer-studio-dev.genlayer.com/address/0xd8a44cc6D81eeb54A51071F790c242AE03e19157
+source SHA-256: 2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af
+status: FINALIZED
+execution: FINISHED_WITH_RETURN
+consensus: MAJORITY_AGREE
+```
 
 ## Network and runner
 
@@ -24,7 +34,7 @@ runner: py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng
 repository: https://github.com/GIFTEDLOV/agentpact
 ```
 
-## Validation before a future deployment
+## Validation gates used for deployment
 
 From the repository root, freeze the source hash and run every gate:
 
@@ -42,7 +52,7 @@ git diff --check
 
 Run raw-source `gen_getContractSchemaForCode` against the RPC and require HTTP 200, `AgentPact`, zero constructor parameters, the exact 11-method ABI, the pinned runner, and no E106/import/runner/schema error. Stop if the source changes after preflight.
 
-Only after these checks should a separately authorized deployment run sign one transaction. Record the future deployment address, transaction, finalization state, Explorer source verification, and deployed-source SHA in a new handoff entry. Never blind-rebroadcast.
+The checks above passed before the single deployment. The submitted fee value was `100000000000010352`, equal to the explicit SDK estimate and nonzero. The deployed source was fetched with `gen_getContractCode` and matched the frozen bytes exactly. Never blind-rebroadcast.
 
 ## Evidence commitments
 
@@ -50,8 +60,16 @@ Only after these checks should a separately authorized deployment run sign one t
 
 The hardened V1 artifact and evidence limits are both `12,000` bytes. At adjudication, the leader and validator independently fetch every committed body and verify HTTP success, nonempty body, exact byte count, exact lowercase SHA-256, and UTF-8 decoding. Any failure maps all criteria to `UNKNOWN`, `evidence_valid=false`, and `INCONCLUSIVE`.
 
-## Lifecycle proof for the future deployment
+## Lifecycle proof for the new deployment
 
-Use disposable Studio-dev accounts and public HTTPS fixtures. Use separate commitments for accepted, rejected, artifact-mismatch inconclusive, evidence-failure inconclusive, mutable-evidence inconclusive, and expired branches. Record each transaction hash and verify `FINALIZED / FINISHED_WITH_RETURN / MAJORITY_AGREE` through the RPC.
+The live proof used disposable funded Studio-dev accounts and immutable raw GitHub fixtures pinned to commit `089a034df3e4e6aac0cd71e10cabe266f8d8028f`. The accepted fixture SHA/bytes were artifact `c64a0d022f3c0159af763ca39483752b950545cdc21cd4d32656ae4abbfd17d1` / `81` and evidence `53b25c14405091d63c27db23cd5045015fd6845b7ba3bee3ff834c985580955c` / `107`.
 
-For submitted branches, record create, provider-only submit, requester-only dispute, adjudication, and read-only state. For expiry, create with no delivery, wait past the exact message-time deadline, expire, and record `EXPIRED`. All lifecycle evidence from the previous deployment is historical and cannot substitute for proof from the new deployment.
+Accepted transaction chain: create `0xc3eb70fc1ef6336eced9d94ed90cffd668a063af8822a81035a159cf6213bef2`, submit `0x76773042fb892b2547afa65c8b63bf322fc3ff0a9a67b41096ddb6c5d8e6b27e`, dispute `0xc01cb1a2a99ef1d1e18afe4c9dd848a1415f9545bb30d9aec000a44422e24f96`, adjudicate `0x5e7db2653384762c8704dab6bd175a8b2f6c873a4a0ec57fa6945879b3439e6f`.
+
+Rejected transaction chain: create `0xbd0086bcf40f69271cf259528f988475d24892439807c24ca0dc38765760572d`, submit `0x747d51e034cd271667e550769c327111487f722bddc2055a29383420fc6e561a`, dispute `0x7374d36d6494593ceb8713600d3b9c1772af9eee412764970be9a2f99928fe81`, adjudicate `0x53b1b984460885fa996d5d5202959eb14720754d7c0565390fa0678c8ccd079f`.
+
+Inconclusive transaction chain: create `0x9a6f1e9fd14d3c2ef7f20ca5647d6ff893c2b11367a9172732f37301fbe8852d`, submit `0x66f7e092de8e7cc2259675b74fb43b89db8b8fe648b2a4e786b800c1819e4ea5`, dispute `0xafafd79cf23015d37c736aced45959715c8298d194f7736dd56a5c79509154cd`, adjudicate `0x70afc6e166012dff20a5fa2326bfdfea8bd79127b15201f7f9abcaa12449cfff`.
+
+Negative checks: unauthorized submission `0xd2c2cc2b87d30ffaa88251c20b216856a25841f3068e09fb707c783423e66064`; terminal re-adjudication `0x50d7811c5fe7100c87fd7d50ada0942856f0f9dedd2517e07050cf32f69ff605`. Both finalized with `FINISHED_WITH_ERROR`.
+
+Mutable-evidence and expiry branches were not needed for this final release proof; all prior lifecycle evidence remains historical and cannot substitute for proof from the new deployment.

@@ -2,17 +2,21 @@
 
 AgentPact is an evidence-backed commitment adjudication contract for GenLayer. A requester creates a commitment, a provider submits a public HTTPS delivery, and either legitimate party can adjudicate after a dispute or deadline. Consensus evaluates the complete committed artifact and evidence, failing closed to `INCONCLUSIVE` when bytes cannot be recovered or verified.
 
-## Release-candidate status
+## Verified Studio-dev release
 
-This repository contains a new hardened source revision for a future deployment. A NEW deployment of the exact final source is required before resubmission. This run performs no deployment and does not claim release completion.
+The hardened source was deployed exactly once to Studio-dev after all local, raw-source, fee, and identity gates passed. The live deployment is the only current AgentPact address to use for submission evidence.
 
-Both existing AgentPact deployments are HISTORICAL only:
+- New deployment: `0xd8a44cc6D81eeb54A51071F790c242AE03e19157`.
+- Deployment transaction: `0x338f0cccd6077a04be92ded0aabc80ac4584cfbf3f1631dd03707fdee28f11ae`.
+- Explorer: `https://explorer-studio-dev.genlayer.com/address/0xd8a44cc6D81eeb54A51071F790c242AE03e19157`.
+- Source SHA-256: `2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af`.
+- Runner: `py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng`.
+- SDK: `genlayer-js 2.0.0-rc.1`; chain `61997`; RPC `https://studio-dev.genlayer.com/api`.
 
-- Older rejected deployment: `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF`.
-- Corrected but now historical deployment: `0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46`, transaction `0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f`, source SHA `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8`.
-- Hardened release-candidate source SHA: `2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af`.
+Historical deployments, never to be reused:
 
-The historical source identity is not the identity for the next deployment. The only source identity to use after all gates pass is the SHA-256 of the final hardened `contracts/agent_pact.py` bytes.
+- HISTORICAL / REJECTED SUBMISSION ARTIFACT: `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF`.
+- HISTORICAL / INTERMEDIATE CORRECTED DEPLOYMENT: `0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46`, transaction `0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f`, source SHA `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8`.
 
 ## E106 and contract discovery
 
@@ -43,6 +47,6 @@ genvm-lint typecheck contracts/agent_pact.py
 git diff --check
 ```
 
-The expected public ABI remains 11 methods with a zero-parameter constructor. Studio-dev raw-source schema preflight must pass before any future deployment. See [`docs/VALIDATION.md`](docs/VALIDATION.md), [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md), and [`docs/RELEASE_HANDOFF.md`](docs/RELEASE_HANDOFF.md).
+The verified live ABI is 11 methods with a zero-parameter constructor. Local gates, raw-source preflight, deployed-source equality, live lifecycle evidence, and submission links are recorded in [`docs/VALIDATION.md`](docs/VALIDATION.md), [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md), and [`docs/RELEASE_HANDOFF.md`](docs/RELEASE_HANDOFF.md).
 
 Financial settlement, payments, and frontend logic remain outside AgentPact.

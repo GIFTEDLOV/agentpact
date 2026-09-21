@@ -1,15 +1,52 @@
 # Validation record
 
-## Release-candidate identity
+## Verified release identity
 
-The hardened source is [`contracts/agent_pact.py`](../contracts/agent_pact.py). Its frozen release-candidate SHA-256 is `2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af`. The previous source SHA `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8` is HISTORICAL.
+The hardened source is [`contracts/agent_pact.py`](../contracts/agent_pact.py). Its frozen source SHA-256 is `2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af`. The previous source SHA `bcea163d516058011e823cd9db422344eb9d4e3009bf95cbea24bc007834aea8` is HISTORICAL.
 
-Both existing deployments are HISTORICAL and must not be used for the next submission:
+Both previous deployments are HISTORICAL and must not be used for submission:
 
 - Older rejected: `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF`.
 - Corrected historical: `0xa339d64338cb561c9140fc5D1fd5F6eF010d3d46`, deployment transaction `0xf6971beb416d81ce171de96eed9986ee1e546bc473da964bbaa489bdc0d2c54f`.
 
-A NEW deployment of the exact final hardened source is required before resubmission. No deployment transaction is performed by this release-candidate run.
+The new deployment below is the only current AgentPact deployment to use for submission evidence.
+
+## New live deployment
+
+```text
+contract: 0xd8a44cc6D81eeb54A51071F790c242AE03e19157
+deployment transaction: 0x338f0cccd6077a04be92ded0aabc80ac4584cfbf3f1631dd03707fdee28f11ae
+explorer: https://explorer-studio-dev.genlayer.com/address/0xd8a44cc6D81eeb54A51071F790c242AE03e19157
+status: FINALIZED
+execution: FINISHED_WITH_RETURN
+consensus: MAJORITY_AGREE
+source SHA-256: 2775e9d26a664601616e3a59a89b876cb1de444758dc8479ca71a8794509c0af
+SDK: genlayer-js 2.0.0-rc.1
+feeValue: 100000000000010352
+```
+
+## Live lifecycle evidence
+
+All live writes finalized with `FINISHED_WITH_RETURN` and `MAJORITY_AGREE` unless explicitly marked as a negative rejection.
+
+| Proof | Commitment | Evaluation transaction | Result |
+|---|---|---|---|
+| Accepted | `pact-1` | `0x5e7db2653384762c8704dab6bd175a8b2f6c873a4a0ec57fa6945879b3439e6f` | `ACCEPTED`, score 100, `evidence_valid=true`, `PASS` |
+| Rejected | `pact-2` | `0x53b1b984460885fa996d5d5202959eb14720754d7c0565390fa0678c8ccd079f` | `REJECTED`, `evidence_valid=true`, `FAIL` |
+| Inconclusive | `pact-3` | `0x70afc6e166012dff20a5fa2326bfdfea8bd79127b15201f7f9abcaa12449cfff` | `INCONCLUSIVE`, `evidence_valid=false`, `UNKNOWN` |
+
+The inconclusive proof used a validly shaped but intentionally incorrect evidence SHA-256 commitment.
+
+`contract_info()` verified `name=AgentPact`, `version=0.1.0`, purpose `evidence-backed commitment adjudication`, `max_criteria=8`, `max_evidence_urls=3`, `max_artifact_bytes=12000`, `max_evidence_bytes=12000`, and the complete seven-status list.
+
+Live negative checks:
+
+```text
+unauthorized provider submission: 0xd2c2cc2b87d30ffaa88251c20b216856a25841f3068e09fb707c783423e66064 — FINALIZED / FINISHED_WITH_ERROR
+terminal re-adjudication: 0x50d7811c5fe7100c87fd7d50ada0942856f0f9dedd2517e07050cf32f69ff605 — FINALIZED / FINISHED_WITH_ERROR
+```
+
+No deployment transaction was rebroadcast after the single successful deployment.
 
 ## Toolchain and local gates
 
@@ -71,9 +108,9 @@ The source now enforces UTF-8 byte limits for title, specification, criteria, di
 
 ## Historical E106 complaint
 
-Git history preserves the rejected pre-fix source. Its module-level `ContractBase` compatibility alias could be discovered before `AgentPact`, causing current semantic discovery to select `genlayer.contract.Contract` and report the historical E106 constructor error. The corrected historical source removed that alias and directly inherited from `gl.contract.Contract`, but that deployment is now historical too. The hardened source is a distinct revision and must be deployed exactly once in a future run after this record is finalized.
+Git history preserves the rejected pre-fix source. Its module-level `ContractBase` compatibility alias could be discovered before `AgentPact`, causing current semantic discovery to select `genlayer.contract.Contract` and report the historical E106 constructor error. The corrected historical source removed that alias and directly inherited from `gl.contract.Contract`, but that deployment is now historical too. The hardened source is a distinct revision and was deployed exactly once as the new live deployment recorded above.
 
-The old rejected address is therefore not evidence for the hardened source. Explorer/source evidence for resubmission must use the future deployment address and the final frozen SHA recorded after deployment.
+The old rejected address is therefore not evidence for the hardened source. Explorer/source evidence must use only the new deployment address and the frozen SHA recorded above.
 
 ## Studio-dev raw-source preflight
 
@@ -86,7 +123,7 @@ RUNNER: py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng
 METHOD: gen_getContractSchemaForCode
 ```
 
-The preflight must use the exact raw UTF-8 source bytes and the current supported Studio-dev schema request. It must return HTTP 200, select `AgentPact`, report zero constructor parameters and the exact 11-method ABI, with no E106, runner, import, or schema-drift errors. This run does not deploy.
+The preflight used the exact raw UTF-8 source bytes and the current supported Studio-dev schema request. It returned HTTP 200, selected `AgentPact`, reported zero constructor parameters and the exact 11-method ABI, with no E106, runner, import, or schema-drift errors.
 
 Recorded for the frozen candidate SHA above:
 
@@ -100,5 +137,5 @@ genvm-lint schema: PASS (11 methods)
 genvm-lint typecheck: PASS (0 errors, 0 warnings)
 git diff --check: PASS
 Studio-dev raw schema: HTTP 200, RPC error null, AgentPact, 0 constructor params, 11 methods
-deployment: NOT RUN
+deployment: PASS — exactly one broadcast; source and deployed bytes match
 ```
