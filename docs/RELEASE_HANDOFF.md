@@ -63,4 +63,6 @@ The corrected deployment lifecycle used create `0x9ffeeb241c1b768d6e95c247c8da21
 
 `AgentPact` always declared `__init__(self)`. A module-level `ContractBase` compatibility alias could be discovered before `AgentPact`, causing current semantic discovery to select `genlayer.contract.Contract`; schema extraction then inspected the SDK base class and reported `__init__ is absent`. The alias was removed and `AgentPact` now directly inherits from `gl.contract.Contract`. Current SDK semantic validation and schema extraction select `AgentPact` and pass, and the exact corrected source was redeployed with a matching on-chain source SHA.
 
+The exact pre-patch error for `check`, `validate`, and `schema` was `Type error: ('__init__ is absent', <class 'genlayer.contract.Contract'>)`. Inspection confirmed `AgentPact.__dict__` already contained `__init__` before and after the change; only the falsely selected SDK base lacked a user-defined initializer.
+
 The public source, fixtures, validation record, runbook, and this handoff are published at https://github.com/GIFTEDLOV/agentpact.

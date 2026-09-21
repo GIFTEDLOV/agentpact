@@ -12,6 +12,16 @@ This equals the source fetched from the finalized corrected deployment `0xf6971b
 
 The former deployment `0x7Fef206fe3f14f01f01A1d18774F9Fcd3162FDCF` / `0xa32cda206de618c87655a06f11f1c8dc019b5b88262bd367cdade71114c6cb2a` with source SHA `f231e6f24cb58c6ca73b3ffa99e33aaf703cf05dd7d6849f0a9e683f09e438a9` is HISTORICAL only.
 
+## Original E106 reproduction
+
+Before the source correction, the current official linter reproduced the reviewer failure for `check`, `validate`, and `schema`:
+
+```text
+Type error: ('__init__ is absent', <class 'genlayer.contract.Contract'>)
+```
+
+The selected class was `genlayer.contract.Contract`, while `AgentPact.__dict__` already contained its own `__init__`. After removing the module-level `ContractBase` alias, discovery selected `AgentPact` directly.
+
 ## Required local checks
 
 Run from the repository root:
